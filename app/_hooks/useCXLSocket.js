@@ -56,9 +56,9 @@ export const useCXLSocket = (socket) => {
         socket.emit(
           "mld:getAllocation",
           {
-            port_index: m.portId,
-            start_ld_id: 0,
-            ld_allocation_list_limit: 16,
+            portIndex: m.portId,
+            startLdId: 0,
+            ldAllocationListLimit: 16,
           },
           (data) => {
             setMLDData((prev) => [
