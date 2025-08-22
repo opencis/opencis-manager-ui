@@ -7,10 +7,24 @@ export const processInitialNodes = ({
   availableNode,
   availableLD,
 }) => {
+  console.log('processInitialNodes called with:', {
+    host: host.length,
+    vcs: vcs.length,
+    ppb: ppb.length,
+    device: device.length,
+    availableNode,
+    availableLD
+  });
+
   const vPPBForHOST = [];
   const vPPBForPPB = [];
   vcs.map((data) => {
     data.hostPort ? vPPBForHOST.push(data) : vPPBForPPB.push(data);
+  });
+
+  console.log('VPPB categorization:', {
+    vPPBForHOST: vPPBForHOST.length,
+    vPPBForPPB: vPPBForPPB.length
   });
 
   const nodeBox = {
@@ -45,7 +59,9 @@ export const processInitialNodes = ({
   const ppbBoxWidth =
     ppb.length * nodeBox.width + gap.row * (ppb.length - 1) + padding.PPB * 2;
 
-  const maxWidth = Math.max(totalVPPBWidth, ppbBoxWidth);
+  // Add fallback values to prevent layout issues when arrays are empty
+  const fallbackWidth = nodeBox.width * 2 + gap.row + padding.PPB * 2;
+  const maxWidth = Math.max(totalVPPBWidth || fallbackWidth, ppbBoxWidth || fallbackWidth);
 
   const groupBox = {
     vcsWidth: vcsWidth,
@@ -54,6 +70,13 @@ export const processInitialNodes = ({
     largeRadius: 53,
     smallRadius: 32,
   };
+
+  console.log('Group box calculations:', {
+    vcsWidth,
+    ppbBoxWidth,
+    maxWidth,
+    groupBox
+  });
 
   const defaultZIndex = 0; // default value
   const vppbZIndex = 1; // set when need to focus
@@ -103,10 +126,10 @@ export const processInitialNodes = ({
     type: "group",
     position: {
       x:
-        window.innerWidth -
+        (typeof window !== 'undefined' ? window.innerWidth : 1200) -
         groupBox.switchWidth -
-        (window.innerWidth - groupBox.switchWidth) / 2,
-      y: window.innerHeight / 7,
+        ((typeof window !== 'undefined' ? window.innerWidth : 1200) - groupBox.switchWidth) / 2,
+      y: (typeof window !== 'undefined' ? window.innerHeight : 800) / 7,
     },
     style: {
       width: `${groupBox.switchWidth}px`,
@@ -120,22 +143,52 @@ export const processInitialNodes = ({
 
   /* vPPB Group */
   const vppbGroup = [];
-  host.map((data, index) => {
+  if (host.length > 0) {
+    host.map((data, index) => {
+      vppbGroup.push({
+        id: `group_vppb_${data?.portId}`,
+        type: "default",
+        position: {
+          x:
+            index * vcsWidth[index === 0 ? index : index - 1] +
+            ((groupBox.switchWidth -
+              groupBox.vcsWidth.reduce((acc, curr) => acc + curr, 0)) /
+              (host.length + 1)) *
+              (index + 1),
+          y: 20,
+        },
+        data: { label: `VCS${index}` },
+        style: {
+          width: `${vcsWidth[index]}px`,
+          height: "212px",
+          border: "white",
+          borderRadius: 32,
+          backgroundColor: "#0C1320",
+          color: "white",
+          display: "flex",
+          justifyContent: "flex-start",
+          alignItems: "start",
+          padding: "20px",
+          fontSize: "14px",
+        },
+        parentId: "group_vcs",
+        extend: "parent",
+        className: "vcs_group",
+        selectable: false,
+      });
+    });
+  } else {
+    // Create a default VCS group when no hosts are present
     vppbGroup.push({
-      id: `group_vppb_${data?.portId}`,
+      id: "group_vppb_default",
       type: "default",
       position: {
-        x:
-          index * vcsWidth[index === 0 ? index : index - 1] +
-          ((groupBox.switchWidth -
-            groupBox.vcsWidth.reduce((acc, curr) => acc + curr, 0)) /
-            (host.length + 1)) *
-            (index + 1),
+        x: 20,
         y: 20,
       },
-      data: { label: `VCS${index}` },
+      data: { label: "VCS" },
       style: {
-        width: `${vcsWidth[index]}px`,
+        width: `${fallbackWidth}px`,
         height: "212px",
         border: "white",
         borderRadius: 32,
@@ -152,7 +205,7 @@ export const processInitialNodes = ({
       className: "vcs_group",
       selectable: false,
     });
-  });
+  }
 
   /* ppbGroup */
   const ppbGroup = {
@@ -160,7 +213,7 @@ export const processInitialNodes = ({
     type: "group",
     position: { x: (groupBox.switchWidth - groupBox.ppbWidth) / 2, y: 252 },
     style: {
-      width: `${groupBox.ppbWidth}px`,
+      width: `${groupBox.ppbWidth || fallbackWidth}px`,
       height: "96px",
       border: "none",
       backgroundColor: "#613F00",
@@ -321,7 +374,13 @@ export const processInitialNodes = ({
   });
 
   /* Device */
+  console.log('Processing devices:', device);
   device.forEach((data, index) => {
+    console.log('Processing device:', data);
+    if (!data) {
+      console.log('Skipping null device at index:', index);
+      return;
+    }
     const h = data.hosts.find((h) => h.hostId !== -1);
 
     initialNodes.push({
@@ -355,6 +414,7 @@ export const processInitialNodes = ({
           ? defaultZIndex
           : deviceZIndex,
         opacity: 1,
+        cursor: data.deviceType === "MLD" ? "pointer" : "default",
       },
       className: `${
         data.deviceType === "MLD"
@@ -371,19 +431,29 @@ export const processInitialNodes = ({
       }`,
       parentId: "group_ppb",
       extend: "parent",
-      selectable: availableNode.ppb?.some((info) => {
+      selectable: data.deviceType === "MLD" ? true : availableNode.ppb?.some((info) => {
         return info.portId === data.portId;
-      })
-        ? true
-        : false,
+      }),
+    });
+
+    console.log('Created device node:', {
+      id: `device_${data?.portId}`,
+      type: data.deviceType,
+      selectable: data.deviceType === "MLD" ? true : availableNode.ppb?.some((info) => {
+        return info.portId === data.portId;
+      }),
+      data: data
     });
   });
 
   device.forEach((data) => {
+    console.log('Processing MLD logical devices for device:', data);
     if (data.deviceType === "MLD") {
       const { logicalDevices } = data;
+      console.log('Logical devices data:', logicalDevices);
 
       logicalDevices.boundLdId.forEach((ld, index) => {
+        console.log('Creating logical device:', ld, 'at index:', index);
         let hostColor = "#D9D9D9";
         const h = data.hosts.find(
           (h) => ld.hostId === h.hostId && ld.vcsId === h.virtualCxlSwitchId
