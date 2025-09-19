@@ -1,18 +1,18 @@
 /**
- * Convert MB to integer value (for backend compatibility)
+ * Convert MB to KB (for backend compatibility)
  * @param {number} mb - Memory size in MB
- * @returns {number} Integer value representing KB (alternative approach)
+ * @returns {number} KB value
  */
 export function mbToInteger(mb) {
-  // Try converting MB to KB instead of bytes
-  // Maybe the backend expects KB values
+  // Convert MB to KB for backend
+  // Backend expects KB values, not allocation multipliers
   const kb = mb * 1024;
   return kb;
 }
 
 /**
- * Convert integer value (KB) back to MB for display
- * @param {number} kbValue - Integer value representing KB
+ * Convert KB back to MB for display
+ * @param {number} kbValue - KB value from backend
  * @returns {number} Memory size in MB
  */
 export function integerToMb(kbValue) {
@@ -140,7 +140,7 @@ export function buildIndividualDeallocationPayload(portIndex, numberOfLds, start
  * @param {number} maxLdId - Maximum allowed LD ID
  * @returns {Object} Validation result with isValid and errors
  */
-export function validateAllocations(numberOfLds, startLdId, allocations, maxLdCount = 8, maxLdId = 255) {
+export function validateAllocations(numberOfLds, startLdId, allocations, maxLdCount = 16, maxLdId = 255) {
   const errors = [];
 
   // Validate number of LDs
@@ -158,9 +158,9 @@ export function validateAllocations(numberOfLds, startLdId, allocations, maxLdCo
     errors.push(`Start LD ID (${startLdId}) + Number of LDs (${numberOfLds}) cannot exceed ${maxLdId + 1}`);
   }
 
-  // Validate allocations array length matches number of LDs
-  if (allocations.length !== numberOfLds) {
-    errors.push(`Number of allocations (${allocations.length}) must match number of LDs (${numberOfLds})`);
+  // Validate allocations array length - allow more allocations than numberOfLds (optional dropdown)
+  if (allocations.length < numberOfLds) {
+    errors.push(`Number of allocations (${allocations.length}) cannot be less than number of LDs (${numberOfLds})`);
   }
 
   // Validate each allocation value (only if numberOfLds > 0)
@@ -172,6 +172,14 @@ export function validateAllocations(numberOfLds, startLdId, allocations, maxLdCo
       if (!Number.isFinite(allocation)) {
         errors.push(`Allocation for LD #${index + 1} must be a valid number`);
       }
+      // Validate that allocation is either 0 or a multiple of 256 MB
+      if (allocation > 0 && allocation % 256 !== 0) {
+        errors.push(`Allocation for LD #${index + 1} must be a multiple of 256 MB (got ${allocation} MB)`);
+      }
+      // Validate maximum allocation size (4GB = 4096 MB)
+      if (allocation > 4096) {
+        errors.push(`Allocation for LD #${index + 1} cannot exceed 4096 MB (4 GB)`);
+      }
     });
   }
 
@@ -179,6 +187,26 @@ export function validateAllocations(numberOfLds, startLdId, allocations, maxLdCo
     isValid: errors.length === 0,
     errors
   };
+}
+
+/**
+ * Generate memory allocation options in 256 MB increments
+ * @param {number} maxSize - Maximum size in MB (default: 4096 MB = 4 GB)
+ * @returns {Array<Object>} Array of options with value and label
+ */
+export function generateMemoryOptions(maxSize = 4096) {
+  const options = [
+    { value: 0, label: '0 MB (Deallocated)' }
+  ];
+
+  for (let size = 256; size <= maxSize; size += 256) {
+    const label = size >= 1024
+      ? `${size} MB (${(size / 1024).toFixed(1)} GB)`
+      : `${size} MB`;
+    options.push({ value: size, label });
+  }
+
+  return options;
 }
 
 /**

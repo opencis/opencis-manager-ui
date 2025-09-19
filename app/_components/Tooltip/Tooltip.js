@@ -59,7 +59,7 @@ const DeviceTooltip = ({ isOpen, node }) => {
         <div
           style={{
             position: "fixed",
-            top: `${rect.top + 92}px`,
+            top: `${rect.top + rect.height / 2 - 100}px`, // Center the tooltip at the MLD center (subtract ~half tooltip height)
             left: `${rect.left - 220}px`,
           }}
         >
@@ -73,9 +73,6 @@ const DeviceTooltip = ({ isOpen, node }) => {
                                     node.data.ldInfo?.capacity ||
                                     node.data.ldInfo?.totalMemory ||
                                     node.data.ldInfo?.memory ||
-                                    node.data.logicalDevices?.memorySize ||
-                                    node.data.logicalDevices?.totalCapacity ||
-                                    node.data.memorySize ||
                                     'Unknown';
 
                 if (totalCapacity === 'Unknown') {
@@ -92,10 +89,10 @@ const DeviceTooltip = ({ isOpen, node }) => {
             </p>
 
             <p className="font-regular">
-              Total LDs Supported <br /> {node.data.ldInfo?.maxLds || 16}
+              Total LDs Supported <br /> {node.data.supportedLdCount || 16}
             </p>
             <p className="font-regular">
-              LDs Currently Allocated <br /> {node.data.logicalDevices?.boundLdId?.length || 0}
+              Allocated LDs <br /> {node.data.logicalDevices?.boundLdId?.length || 0}
             </p>
             {node.data.ldInfo?.ldSize && (
               <p className="font-regular">
@@ -131,9 +128,18 @@ const DeviceTooltip = ({ isOpen, node }) => {
                     const range1Index = ldId * 2;
                     const range1Value = ldAllocationList[range1Index];
                     if (typeof range1Value === 'number' && !isNaN(range1Value)) {
-                      // Convert KB to MB
-                      const mbValue = range1Value / 1024;
-                      return `${mbValue} MB`;
+                      // Convert allocation multiplier to MB
+                      // Each unit represents 256 MB
+                      // - 0 = deallocated
+                      // - 1 = 256 MB
+                      // - 2 = 512 MB
+                      // - etc.
+                      if (range1Value === 0) {
+                        return "0 MB (Deallocated)";
+                      } else {
+                        const mbValue = range1Value * 256;
+                        return `${mbValue} MB`;
+                      }
                     }
                   }
                 }

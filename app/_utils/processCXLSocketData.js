@@ -30,7 +30,7 @@ export const processCXLSocketData = ({
     console.log('Processing port:', port);
     if (port.currentPortConfigurationState === "USP") {
       if (port.ltssmState === "L0") {
-        const COLOR = ["#2097F6", "#65BF73"];
+        const COLOR = ["#8B7D9A", "#5A8A5A"]; // Changed first color from #366C9A to #8B7D9A (muted purple)
         host.push({
           portType: "USP",
           portId: port.portId,
@@ -164,6 +164,10 @@ export const processCXLSocketData = ({
       console.log('Final LD info being set on device:', finalLDInfo);
       console.log('Final LD info totalCapacity:', finalLDInfo?.totalCapacity);
 
+      // Get supportedLdCount from port data with fallback to 16
+      const supportedLdCount = port.supportedLdCount || 16;
+      console.log('Supported LD count for port', port.portId, ':', supportedLdCount);
+
       device.push({
         portType: "DSP",
         portId: port.portId,
@@ -172,6 +176,7 @@ export const processCXLSocketData = ({
         deviceType: mld ? "MLD" : "SLD",
         logicalDevices: mld ? mld : null,
         ldInfo: finalLDInfo, // Use calculated capacity as fallback
+        supportedLdCount: supportedLdCount, // Add supported LD count
       });
       ppb.push({
         portType: "DSP",
@@ -199,6 +204,15 @@ export const processCXLSocketData = ({
       console.log('MLD allocation data keys:', mldAllocation ? Object.keys(mldAllocation) : 'null');
       console.log('MLD allocation data stringified:', JSON.stringify(mldAllocation, null, 2));
 
+      // Debug capacity information
+      console.log('=== CAPACITY DEBUG ===');
+      console.log('totalCapacity field:', mldAllocation?.totalCapacity);
+      console.log('maxCapacity field:', mldAllocation?.maxCapacity);
+      console.log('deviceCapacity field:', mldAllocation?.deviceCapacity);
+      console.log('remainingCapacity field:', mldAllocation?.remainingCapacity);
+      console.log('usedCapacity field:', mldAllocation?.usedCapacity);
+      console.log('=== END CAPACITY DEBUG ===');
+
       // Calculate total device capacity (not allocated memory)
       let totalDeviceCapacity = null;
 
@@ -214,99 +228,114 @@ export const processCXLSocketData = ({
         } else if (mldAllocation.deviceCapacity) {
           totalDeviceCapacity = mldAllocation.deviceCapacity / (1024 * 1024); // Convert bytes to MB
           console.log('Total device capacity from deviceCapacity:', totalDeviceCapacity, 'MB');
+        } else if (mldAllocation.remainingCapacity !== undefined && mldAllocation.usedCapacity !== undefined) {
+          // Calculate total from remaining + used capacity
+          const totalBytes = mldAllocation.remainingCapacity + mldAllocation.usedCapacity;
+          totalDeviceCapacity = totalBytes / (1024 * 1024); // Convert bytes to MB
+          console.log('Total device capacity calculated from remaining + used:', totalDeviceCapacity, 'MB');
         } else {
           // If no capacity field found, use a default value based on typical MLD devices
           // Most MLD devices have 4GB or 8GB total capacity
           totalDeviceCapacity = 4096; // Default to 4GB in MB
           console.log('Using default total device capacity:', totalDeviceCapacity, 'MB (4GB)');
+          console.warn('Backend should provide capacity information for accurate tracking');
         }
       }
 
-      // Calculate allocated memory separately
+      // Calculate allocated memory from backend capacity fields
       let allocatedMemory = null;
-      if (mldAllocation && mldAllocation.ldAllocationList && mldAllocation.ldAllocationList.length > 0) {
-        console.log('MLD ldAllocationList for allocated memory calculation:', mldAllocation.ldAllocationList);
-        console.log('First allocation object keys:', Object.keys(mldAllocation.ldAllocationList[0] || {}));
+      if (mldAllocation) {
+        // Use deviceCapacity field from backend (already in bytes)
+        if (mldAllocation.deviceCapacity !== undefined) {
+          allocatedMemory = mldAllocation.deviceCapacity / (1024 * 1024); // Convert bytes to MB
+          console.log('Allocated memory from deviceCapacity:', allocatedMemory, 'MB');
+        } else if (mldAllocation.ldAllocationList && mldAllocation.ldAllocationList.length > 0) {
+          // Fallback: Calculate from allocation list
+          console.log('MLD ldAllocationList for allocated memory calculation:', mldAllocation.ldAllocationList);
 
-        // Handle both flat array format [range1, range2, range1, range2, ...] and object format
-        let totalKB = 0;
+          // Handle allocation multipliers where each unit = 256 MB
+          let totalMB = 0;
 
-        if (Array.isArray(mldAllocation.ldAllocationList) && typeof mldAllocation.ldAllocationList[0] === 'number') {
-          // Flat array format - extract range1 values (even indices)
-          for (let i = 0; i < mldAllocation.ldAllocationList.length; i += 2) {
-            const range1 = mldAllocation.ldAllocationList[i] || 0;
-            const range2 = mldAllocation.ldAllocationList[i + 1] || 0;
-            console.log('Allocation ranges (flat array):', { range1, range2, index: i });
-            totalKB += range1 + range2;
+          if (Array.isArray(mldAllocation.ldAllocationList) && typeof mldAllocation.ldAllocationList[0] === 'number') {
+            // Flat array format [range1, range2, range1, range2, ...]
+            for (let i = 0; i < mldAllocation.ldAllocationList.length; i += 2) {
+              const range1 = mldAllocation.ldAllocationList[i] || 0;
+              console.log('Allocation multiplier:', { range1, index: i/2 });
+              totalMB += range1 * 256; // Each unit = 256 MB
+            }
+          } else {
+            // Object format (fallback)
+            totalMB = mldAllocation.ldAllocationList.reduce((sum, allocation) => {
+              const range1 = allocation.range1 || 0;
+              return sum + (range1 * 256);
+            }, 0);
           }
+
+          allocatedMemory = totalMB;
+          console.log('Calculated allocated memory from allocation list:', allocatedMemory, 'MB');
         } else {
-          // Object format - extract range1 from each object
-          totalKB = mldAllocation.ldAllocationList.reduce((sum, allocation) => {
-            const range1 = allocation.range1 || allocation.range1KB || allocation.range1_kb || 0;
-            const range2 = allocation.range2 || allocation.range2KB || allocation.range2_kb || 0;
-            console.log('Allocation ranges (object):', { range1, range2, allocation });
-            return sum + range1 + range2;
-          }, 0);
-        }
-
-        allocatedMemory = totalKB / 1024; // Convert KB to MB
-        console.log('Calculated allocated memory from MLD data:', allocatedMemory, 'MB');
-        console.log('Total KB before conversion:', totalKB);
-
-        // If the backend data shows 0, try to calculate from the number of LDs
-        if (allocatedMemory === 0 && mldAllocation.numberOfLds > 0) {
-          // Assume each LD is 256 MB (default allocation size)
-          const estimatedAllocated = mldAllocation.numberOfLds * 256;
-          console.log('Backend returned 0 allocated memory, estimating from LD count:', estimatedAllocated, 'MB');
-          allocatedMemory = estimatedAllocated;
-        }
-      } else {
-        console.log('No MLD allocation data available for allocated memory calculation');
-
-        // Try to estimate allocated memory from the MLD allocation data structure
-        if (mldAllocation && mldAllocation.numberOfLds !== undefined) {
-          // If we have numberOfLds but no ldAllocationList, estimate allocated memory
-          const estimatedAllocated = mldAllocation.numberOfLds * 256; // Assume 256 MB per LD
-          console.log('Estimating allocated memory from numberOfLds:', estimatedAllocated, 'MB');
-          allocatedMemory = estimatedAllocated;
+          console.log('No allocation data available for allocated memory calculation');
         }
       }
 
       // Use the actual numberOfLds from the MLD allocation data, fallback to device data, then default to 0
       const numberOfLds = mldAllocation?.numberOfLds || logicalDevices?.numberOfLds || 0;
+      console.log('=== LD ALLOCATION DEBUG ===');
+      console.log('mldAllocation:', mldAllocation);
+      console.log('logicalDevices:', logicalDevices);
       console.log('Number of LDs (from allocation):', numberOfLds);
+      console.log('LD Info (ldCount):', dev.ldInfo?.ldCount);
+      console.log('Total supported LDs should be:', dev.ldInfo?.ldCount || 16);
 
-      // Create logical devices based on the data and actual bindings
+      // Create logical devices based on the allocation list
+      // Only create LD slots for LDs where range1 = 1 (allocated)
       let boundLdIds = [];
-      if (numberOfLds > 0) {
-        // If there are LDs, create them based on the actual data
-        for (let i = 0; i < numberOfLds; i++) {
-          // Check if this LD is bound to any VPPB
-          const boundVPPB = vcs.find(v =>
-            !v.hostPort &&
-            v.vppb.bindingStatus === "BOUND_LD" &&
-            v.vppb.boundPortId === dev.portId &&
-            v.vppb.boundLdId === i
-          );
 
-          if (boundVPPB) {
-            // This LD is bound to a VPPB
-            boundLdIds.push({
-              hostId: boundVPPB.uspId,
-              vcsId: boundVPPB.virtualCxlSwitchId,
-              from: boundVPPB.vppb.vppbId,
-              to: i,
-              order: i,
-            });
+      if (mldAllocation?.ldAllocationList && Array.isArray(mldAllocation.ldAllocationList)) {
+        console.log('Processing allocation list:', mldAllocation.ldAllocationList);
+
+        // Process the allocation list in pairs (range1, range2 for each LD)
+        for (let i = 0; i < mldAllocation.ldAllocationList.length; i += 2) {
+          const range1 = mldAllocation.ldAllocationList[i];
+          const range2 = mldAllocation.ldAllocationList[i + 1] || 0;
+
+          const ldIndex = i / 2; // LD index (0, 1, 2, ...)
+
+          console.log(`LD ${ldIndex}: range1=${range1}, range2=${range2}`);
+
+          // Create LD slot if range1 = 1 (allocated) OR if there's any memory allocated
+          if (range1 === 1 || range1 > 0) {
+            console.log(`LD ${ldIndex} is allocated, creating slot`);
+
+            // Check if this LD is bound to any VPPB
+            const boundVPPB = vcs.find(v =>
+              !v.hostPort &&
+              v.vppb.bindingStatus === "BOUND_LD" &&
+              v.vppb.boundPortId === dev.portId &&
+              v.vppb.boundLdId === ldIndex
+            );
+
+            if (boundVPPB) {
+              // This LD is bound to a VPPB
+              boundLdIds.push({
+                hostId: boundVPPB.uspId,
+                vcsId: boundVPPB.virtualCxlSwitchId,
+                from: boundVPPB.vppb.vppbId,
+                to: ldIndex,
+                order: ldIndex,
+              });
+            } else {
+              // This LD is unbound but allocated
+              boundLdIds.push({
+                hostId: -1,
+                vcsId: -1,
+                from: null,
+                to: ldIndex,
+                order: ldIndex,
+              });
+            }
           } else {
-            // This LD is unbound
-            boundLdIds.push({
-              hostId: -1,
-              vcsId: -1,
-              from: null,
-              to: i,
-              order: i,
-            });
+            console.log(`LD ${ldIndex} is deallocated (range1=${range1}), skipping`);
           }
         }
       }
@@ -324,7 +353,11 @@ export const processCXLSocketData = ({
         ldInfo: {
           ...dev.ldInfo,
           totalDeviceCapacity: totalDeviceCapacity || dev.ldInfo?.totalDeviceCapacity || 4096, // Default to 4GB
-          allocatedMemory: allocatedMemory || dev.ldInfo?.allocatedMemory || 0
+          allocatedMemory: allocatedMemory || dev.ldInfo?.allocatedMemory || 0,
+          // Add the raw capacity fields from backend for reference
+          totalCapacity: mldAllocation?.totalCapacity,
+          deviceCapacity: mldAllocation?.deviceCapacity,
+          remainingCapacity: mldAllocation?.remainingCapacity
         },
       };
               console.log('Updated device:', device[index]);

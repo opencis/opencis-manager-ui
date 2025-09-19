@@ -9,6 +9,115 @@ export const useCXLSocket = (socket) => {
   const [mldData, setMLDData] = useState([]);
   const [ldInfoData, setLDInfoData] = useState({});
 
+  // Move refresh functions outside useEffect so they can be called directly
+  const getDeviceData = () => {
+    if (!socket) return;
+    console.log("📡 Requesting device data...");
+    socket.emit("device:get", (data) => {
+      console.log("📥 Device data response:", data);
+      if (JSON.stringify(deviceData) !== JSON.stringify(data["result"])) {
+        console.log("✅ Device data updated");
+        setDeviceData(data["result"]);
+      } else {
+        console.log("⏭️ Device data unchanged");
+      }
+    });
+  };
+
+  const getPortData = () => {
+    if (!socket) return;
+    console.log("📡 Requesting port data...");
+    socket.emit("port:get", (data) => {
+      console.log("📥 Port data response:", data);
+      if (JSON.stringify(portData) !== JSON.stringify(data["result"])) {
+        console.log("✅ Port data updated");
+        setPortData(data["result"]);
+      } else {
+        console.log("⏭️ Port data unchanged");
+      }
+    });
+  };
+
+  const getVCSData = () => {
+    if (!socket) return;
+    console.log("📡 Requesting VCS data...");
+    socket.emit("vcs:get", (data) => {
+      console.log("📥 VCS data response:", data);
+      if (JSON.stringify(vcsData) !== JSON.stringify(data["result"])) {
+        console.log("✅ VCS data updated");
+        setVCSData(data["result"]);
+      } else {
+        console.log("⏭️ VCS data unchanged");
+      }
+    });
+  };
+
+  const getLDInfoData = () => {
+    if (!socket) return;
+    console.log("📡 Requesting LD info data...");
+    // Try the primary command first
+    console.log("�� Emitting mld:getLdInfo command...");
+    const startTime = Date.now();
+    socket.emit("mld:getLdInfo", {}, (data) => {
+      const responseTime = Date.now() - startTime;
+      console.log(`📥 LD info data response received after ${responseTime}ms:`, data);
+      console.log("📥 LD info data result:", data?.result);
+      console.log("📥 LD info data type:", typeof data?.result);
+      console.log("📥 LD info data stringified:", JSON.stringify(data?.result, null, 2));
+
+      if (data && data.result) {
+        console.log("✅ LD info data updated");
+        console.log("✅ LD info data keys:", Object.keys(data.result));
+        console.log("✅ LD info data values:", data.result);
+        setLDInfoData(data.result);
+      } else {
+        console.log("⏭️ LD info data unchanged or empty");
+        console.log("⏭️ Setting empty LD info data");
+        setLDInfoData({});
+      }
+    });
+
+    // Add a timeout to check if the callback is never called
+    setTimeout(() => {
+      console.log("⏰ LD info command timeout - callback not received within 5 seconds");
+    }, 5000);
+
+          // Also try alternative command names if the first one doesn't work
+    setTimeout(() => {
+      console.log("�� Trying alternative LD info command: mld:getInfo");
+      socket.emit("mld:getInfo", {}, (data) => {
+        console.log("📥 Alternative LD info response:", data);
+        if (data && data.result && Object.keys(data.result).length > 0) {
+          console.log("✅ Alternative LD info data found");
+          setLDInfoData(data.result);
+        }
+      });
+    }, 1000);
+
+    // Try more alternative commands
+    setTimeout(() => {
+      console.log("�� Trying alternative command: mld:getCapacity");
+      socket.emit("mld:getCapacity", {}, (data) => {
+        console.log("📥 Capacity command response:", data);
+        if (data && data.result) {
+          console.log("✅ Capacity data found");
+          setLDInfoData(data.result);
+        }
+      });
+    }, 2000);
+
+    setTimeout(() => {
+      console.log("�� Trying alternative command: mld:getMemoryInfo");
+      socket.emit("mld:getMemoryInfo", {}, (data) => {
+        console.log("📥 Memory info command response:", data);
+        if (data && data.result) {
+          console.log("✅ Memory info data found");
+          setLDInfoData(data.result);
+        }
+      });
+    }, 3000);
+  };
+
   const refreshMLDData = () => {
     if (!socket || !portData) return;
 
@@ -45,6 +154,15 @@ export const useCXLSocket = (socket) => {
     }
   };
 
+  const refreshAllData = () => {
+    console.log("🔄 Refreshing all data sources");
+    getDeviceData();
+    getPortData();
+    getVCSData();
+    getLDInfoData();
+    refreshMLDData();
+  };
+
   useEffect(() => {
     if (!socket) {
       console.log("❌ No socket available for data requests");
@@ -52,108 +170,6 @@ export const useCXLSocket = (socket) => {
     }
 
     console.log("🔌 Socket available, making data requests...");
-
-    const getDeviceData = () => {
-      console.log("📡 Requesting device data...");
-      socket.emit("device:get", (data) => {
-        console.log("📥 Device data response:", data);
-        if (JSON.stringify(deviceData) !== JSON.stringify(data["result"])) {
-          console.log("✅ Device data updated");
-          setDeviceData(data["result"]);
-        } else {
-          console.log("⏭️ Device data unchanged");
-        }
-      });
-    };
-    const getPortData = () => {
-      console.log("📡 Requesting port data...");
-      socket.emit("port:get", (data) => {
-        console.log("📥 Port data response:", data);
-        if (JSON.stringify(portData) !== JSON.stringify(data["result"])) {
-          console.log("✅ Port data updated");
-          setPortData(data["result"]);
-        } else {
-          console.log("⏭️ Port data unchanged");
-        }
-      });
-    };
-    const getVCSData = () => {
-      console.log("📡 Requesting VCS data...");
-      socket.emit("vcs:get", (data) => {
-        console.log("📥 VCS data response:", data);
-        if (JSON.stringify(vcsData) !== JSON.stringify(data["result"])) {
-          console.log("✅ VCS data updated");
-          setVCSData(data["result"]);
-        } else {
-          console.log("⏭️ VCS data unchanged");
-        }
-      });
-    };
-
-    const getLDInfoData = () => {
-      console.log("📡 Requesting LD info data...");
-      // Try the primary command first
-      console.log("📡 Emitting mld:getLdInfo command...");
-      const startTime = Date.now();
-      socket.emit("mld:getLdInfo", {}, (data) => {
-        const responseTime = Date.now() - startTime;
-        console.log(`📥 LD info data response received after ${responseTime}ms:`, data);
-        console.log("📥 LD info data result:", data?.result);
-        console.log("📥 LD info data type:", typeof data?.result);
-        console.log("📥 LD info data stringified:", JSON.stringify(data?.result, null, 2));
-
-        if (data && data.result) {
-          console.log("✅ LD info data updated");
-          console.log("✅ LD info data keys:", Object.keys(data.result));
-          console.log("✅ LD info data values:", data.result);
-          setLDInfoData(data.result);
-        } else {
-          console.log("⏭️ LD info data unchanged or empty");
-          console.log("⏭️ Setting empty LD info data");
-          setLDInfoData({});
-        }
-      });
-
-      // Add a timeout to check if the callback is never called
-      setTimeout(() => {
-        console.log("⏰ LD info command timeout - callback not received within 5 seconds");
-      }, 5000);
-
-            // Also try alternative command names if the first one doesn't work
-      setTimeout(() => {
-        console.log("📡 Trying alternative LD info command: mld:getInfo");
-        socket.emit("mld:getInfo", {}, (data) => {
-          console.log("📥 Alternative LD info response:", data);
-          if (data && data.result && Object.keys(data.result).length > 0) {
-            console.log("✅ Alternative LD info data found");
-            setLDInfoData(data.result);
-          }
-        });
-      }, 1000);
-
-      // Try more alternative commands
-      setTimeout(() => {
-        console.log("📡 Trying alternative command: mld:getCapacity");
-        socket.emit("mld:getCapacity", {}, (data) => {
-          console.log("📥 Capacity command response:", data);
-          if (data && data.result) {
-            console.log("✅ Capacity data found");
-            setLDInfoData(data.result);
-          }
-        });
-      }, 2000);
-
-      setTimeout(() => {
-        console.log("📡 Trying alternative command: mld:getMemoryInfo");
-        socket.emit("mld:getMemoryInfo", {}, (data) => {
-          console.log("📥 Memory info command response:", data);
-          if (data && data.result) {
-            console.log("✅ Memory info data found");
-            setLDInfoData(data.result);
-          }
-        });
-      }, 3000);
-    };
 
     getDeviceData();
     getPortData();
@@ -238,5 +254,6 @@ export const useCXLSocket = (socket) => {
     mldData,
     ldInfoData,
     refreshMLDData,
+    refreshAllData, // Add this new function
   };
 };

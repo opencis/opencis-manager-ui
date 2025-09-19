@@ -64,8 +64,8 @@ export const processInitialEdges = ({ nodes, initialEdges }) => {
           id: `${data.source}_${info}`,
           source: data.source,
           target: info,
-          zIndex: 1,
-          style: { stroke: "#FF5A43", strokeWidth: 2 },
+          zIndex: 100, // Higher z-index to appear in front of all elements
+          style: { stroke: "#fde073", strokeWidth: 2 }, // Changed from #FF5A43 to #fde073
           type: "default",
           selectable: false,
         });
@@ -75,8 +75,8 @@ export const processInitialEdges = ({ nodes, initialEdges }) => {
       id: `${data.source}_${data.target}`,
       source: data.source,
       target: data.target,
-      zIndex: 1,
-      style: { stroke: "#FF5A43", strokeWidth: 2 },
+      zIndex: 100, // Higher z-index to appear in front of all elements
+      style: { stroke: "#fde073", strokeWidth: 2 }, // Changed from #FF5A43 to #fde073
       type: "default",
       selectable: false,
     });

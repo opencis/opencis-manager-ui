@@ -14,6 +14,7 @@ import { processInitialEdges } from "./_utils/processInitialEdges";
 import { processInitialNodes } from "./_utils/processInitialNodes";
 
 import "./style.css";
+import LDAllocationPopup from "./_components/LDAllocationPopup";
 
 export default function Overview() {
   const { socket, connected } = useSocket();
@@ -23,13 +24,14 @@ export default function Overview() {
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
   const [tooltipData, setTooltipData] = useState(null);
 
-  // MLD Modal state
-  const [isMLDModalOpen, setIsMLDModalOpen] = useState(false);
+  // MLD Popup state (replace modal state)
+  const [isMLDPopupOpen, setIsMLDPopupOpen] = useState(false);
   const [selectedMLDData, setSelectedMLDData] = useState(null);
+  const [mldNodeId, setMldNodeId] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const { portData, deviceData, vcsData, mldData, ldInfoData, refreshMLDData } = useCXLSocket(socket);
+  const { portData, deviceData, vcsData, mldData, ldInfoData, refreshAllData } = useCXLSocket(socket);
   const { host, vcs, device, ppb } = processCXLSocketData({
     portData,
     vcsData,
@@ -188,10 +190,11 @@ export default function Overview() {
         openDialog();
       }
     } else if (node.data?.type === "device" && node.data?.deviceType === "MLD") {
-      // Open MLD allocation modal when clicking on MLD device
-      console.log('MLD device clicked, opening modal');
+      // Open MLD popup
+      console.log('MLD device clicked, opening popup');
       setSelectedMLDData(node.data);
-      setIsMLDModalOpen(true);
+      setMldNodeId(node.id);
+      setIsMLDPopupOpen(true);
     }
   };
 
@@ -212,7 +215,14 @@ export default function Overview() {
             showError(args.error, vppb);
             return;
           }
+          // Clear the selection state so the vPPB is no longer selected
           setAvailableNode({ vcs: null, vppb: null, ppb: [] });
+
+          // Manually refresh all data after a short delay
+          setTimeout(() => {
+            console.log("🔄 Manually refreshing all data after unbind");
+            refreshAllData();
+          }, 500);
         }
       );
     } else {
@@ -233,7 +243,14 @@ export default function Overview() {
             showError(args.error, vppb);
             return;
           }
+          // Clear the selection state so the vPPB is no longer selected
           setAvailableNode({ vcs: null, vppb: null, ppb: [] });
+
+          // Manually refresh all data after a longer delay for binding
+          setTimeout(() => {
+            console.log("🔄 Manually refreshing all data after bind");
+            refreshAllData();
+          }, 1000);
         }
       );
     }
@@ -256,17 +273,18 @@ export default function Overview() {
     }
   };
 
-  const closeMLDModal = () => {
-    setIsMLDModalOpen(false);
+  const closeMLDPopup = () => {
+    setIsMLDPopupOpen(false);
     setSelectedMLDData(null);
+    setMldNodeId(null);
   };
 
   const handleLDAllocationSuccess = async (response, payload) => {
     console.log('LD Allocation successful:', response);
     console.log('Payload sent:', payload);
 
-    // Close the modal
-    closeMLDModal();
+    // Close the popup
+    closeMLDPopup();
 
     // Show success message
     setSuccessMessage('LD allocation completed successfully! Refreshing MLD display...');
@@ -299,7 +317,7 @@ export default function Overview() {
       // Wait a moment for data to propagate, then refresh MLD data
       setTimeout(() => {
         console.log('Refreshing MLD data...');
-        refreshMLDData();
+        refreshAllData();
 
         // Force a final re-render
         setRefreshTrigger(prev => prev + 1);
@@ -320,25 +338,13 @@ export default function Overview() {
         <div className="fixed top-4 left-4 z-50 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg">
           <div className="flex items-center">
             <div className={`w-3 h-3 rounded-full mr-2 ${connected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            <span className="text-sm font-medium">
-              {connected ? 'Backend Connected' : 'Backend Disconnected'}
+            <span className="text-2xl font-medium">
+              {connected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
         </div>
 
-        {/* Disconnected Message */}
-        {!connected && (
-          <div className="fixed top-16 left-4 z-50 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow-lg">
-            <div className="flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <span className="text-sm font-medium">
-                No data will be displayed until backend connection is established
-              </span>
-            </div>
-          </div>
-        )}
+
 
         {/* Success Message */}
         {successMessage && (
@@ -383,32 +389,14 @@ export default function Overview() {
         />
       </div>
 
-      {/* MLD Allocation Modal */}
-      {isMLDModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-y-auto m-4">
-            <div className="flex justify-between items-center p-6 border-b">
-              <h2 className="text-2xl font-bold text-gray-900">
-                LD Allocation Manager - MLD Port {selectedMLDData?.portId}
-              </h2>
-              <button
-                onClick={closeMLDModal}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <LDAllocationForm
-                selectedMLDData={selectedMLDData}
-                onSuccess={handleLDAllocationSuccess}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* LD Allocation Popup */}
+      <LDAllocationPopup
+        isOpen={isMLDPopupOpen}
+        onClose={closeMLDPopup}
+        selectedMLDData={selectedMLDData}
+        mldNodeId={mldNodeId}
+        onSuccess={handleLDAllocationSuccess}
+      />
 
       <DeviceTooltip isOpen={isTooltipOpen} node={tooltipData} />
     </>
