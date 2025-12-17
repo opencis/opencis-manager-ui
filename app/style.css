@@ -9,9 +9,44 @@
 }
 
 .react-flow__handle {
-  background-color: #ff5a43 !important;
-  border: 5px solid #ff5a43 !important;
+  background-color: #fde073 !important;
+  border: 5px solid #fde073 !important;
   cursor: default !important;
+}
+
+/* Hide handles on MLD note nodes */
+[data-type="mldNote"] .react-flow__handle {
+  display: none !important;
+}
+
+/* Hide all handles on MLD note nodes (including center handles) */
+[data-type="mldNote"] .react-flow__handle-top,
+[data-type="mldNote"] .react-flow__handle-bottom,
+[data-type="mldNote"] .react-flow__handle-left,
+[data-type="mldNote"] .react-flow__handle-right,
+[data-type="mldNote"] .react-flow__handle {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Hide handles on MLD note nodes using class selector */
+.mld-note-node .react-flow__handle,
+.mld-note-node .react-flow__handle-top,
+.mld-note-node .react-flow__handle-bottom,
+.mld-note-node .react-flow__handle-left,
+.mld-note-node .react-flow__handle-right {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Alternative approach - hide all handles within the note node */
+.mld-note-node *[class*="react-flow__handle"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 .logical_device {
@@ -147,3 +182,101 @@
   transform: scale(1) !important;
   opacity: 1 !important;
 }
+
+/* Hide handles on switch label nodes */
+[data-type="switchLabel"] .react-flow__handle {
+  display: none !important;
+}
+
+/* Hide all handles on switch label nodes (including center handles) */
+[data-type="switchLabel"] .react-flow__handle-top,
+[data-type="switchLabel"] .react-flow__handle-bottom,
+[data-type="switchLabel"] .react-flow__handle-left,
+[data-type="switchLabel"] .react-flow__handle-right,
+[data-type="switchLabel"] .react-flow__handle {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Alternative approach - hide all handles within the switch label node */
+[data-type="switchLabel"] *[class*="react-flow__handle"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Hide handles on switch label nodes using class selector */
+.switch-label-node .react-flow__handle,
+.switch-label-node .react-flow__handle-top,
+.switch-label-node .react-flow__handle-bottom,
+.switch-label-node .react-flow__handle-left,
+.switch-label-node .react-flow__handle-right {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Alternative approach - hide all handles within the switch label node */
+.switch-label-node *[class*="react-flow__handle"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Hide handles on host label nodes */
+.host-label-node .react-flow__handle,
+.host-label-node .react-flow__handle-top,
+.host-label-node .react-flow__handle-bottom,
+.host-label-node .react-flow__handle-left,
+.host-label-node .react-flow__handle-right {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Alternative approach - hide all handles within the host label node */
+.host-label-node *[class*="react-flow__handle"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Hide handles on host background box nodes */
+.host-background-node .react-flow__handle,
+.host-background-node .react-flow__handle-top,
+.host-background-node .react-flow__handle-bottom,
+.host-background-node .react-flow__handle-left,
+.host-background-node .react-flow__handle-right {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Alternative approach - hide all handles within the host background node */
+.host-background-node *[class*="react-flow__handle"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+/* Make number input arrows always visible */
+.number-input-arrows::-webkit-outer-spin-button,
+.number-input-arrows::-webkit-inner-spin-button {
+  opacity: 1 !important;
+  -webkit-appearance: inner-spin-button !important;
+}
+
+.number-input-arrows[type="number"] {
+  -moz-appearance: textfield !important;
+}
+
+.number-input-arrows[type="number"]::-webkit-outer-spin-button,
+.number-input-arrows[type="number"]::-webkit-inner-spin-button {
+  opacity: 1 !important;
+  -webkit-appearance: inner-spin-button !important;
+}
+
